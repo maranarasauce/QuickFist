@@ -1,24 +1,17 @@
-﻿using HarmonyLib;
-using UMM;
+﻿using BepInEx;
+using HarmonyLib;
 using UnityEngine;
 
 namespace QuickFist
 {
-    [UKPlugin("QuickFist", "0.2.0", "Binds Feedbacker to F and KnuckleBlaster to G", true, true)]
-    public class QuickFist : UKMod
+    [BepInPlugin("maranara_quick_fist", "QuickFist", "0.2.0")]
+    public class QuickFist : BaseUnityPlugin
     {
         private static Harmony harmony;
-        // Quick n dirty little mod. Not much organization - sorry! - Tempy says please think aobut the future man, this sucks :(
         private void OnEnable()
         {
             harmony = new Harmony("maranara_quick_fist");
             harmony.PatchAll(typeof(QuickFist));
-        }
-
-        public override void OnModUnload()
-        {
-            base.OnModUnload();
-            harmony.UnpatchSelf();
         }
 
         static Punch redPunch;
