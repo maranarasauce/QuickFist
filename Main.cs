@@ -1,22 +1,24 @@
-﻿using BepInEx;
-using HarmonyLib;
-using System;
+﻿using HarmonyLib;
+using UMM;
 using UnityEngine;
-using UnityEngine.Audio;
-using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
 namespace QuickFist
 {
-    [BepInPlugin("maranara_quick_fist", "QuickFist", "0.0.1")]
-    public class QuickFist : BaseUnityPlugin
+    [UKPlugin("QuickFist", "0.2.0", "Binds Feedbacker to F and KnuckleBlaster to G", true, true)]
+    public class QuickFist : UKMod
     {
-        //Quick n dirty little mod. Not much organization - sorry!
+        private static Harmony harmony;
+        // Quick n dirty little mod. Not much organization - sorry! - Tempy says please think aobut the future man, this sucks :(
         private void OnEnable()
         {
-            Harmony harmony = new Harmony("maranara_quick_fist");
+            harmony = new Harmony("maranara_quick_fist");
             harmony.PatchAll(typeof(QuickFist));
-            //SceneManager.sceneLoaded += SceneManager_sceneLoaded;
+        }
+
+        public override void OnModUnload()
+        {
+            base.OnModUnload();
+            harmony.UnpatchSelf();
         }
 
         static Punch redPunch;
@@ -25,7 +27,7 @@ namespace QuickFist
         [HarmonyPostfix]
         static void ArmStart(FistControl __instance)
         {
-           redPunch = __instance.redArm.GetComponent<Punch>();
+            redPunch = __instance.redArm.GetComponent<Punch>();
             bluePunch = __instance.blueArm.GetComponent<Punch>();
             __instance.redArm.SetActive(true);
             __instance.blueArm.SetActive(true);
@@ -37,7 +39,7 @@ namespace QuickFist
         [HarmonyPrefix]
         static bool ArmChange(FistControl __instance, int orderNum)
         {
-            //Debug.Log(orderNum);
+            Debug.Log(orderNum);
             if (orderNum == 1)
             {
                 __instance.redArm.SetActive(true);
@@ -49,19 +51,53 @@ namespace QuickFist
             return true;
         }
 
+
         [HarmonyPatch(typeof(Punch), "Start")]
         [HarmonyPostfix]
         static void ArmPunch(Punch __instance)
         {
-            
+
             if (__instance.type == FistType.Heavy)
             {
                 camObj = Traverse.Create(redPunch).Field("camObj");
                 holdingInput = Traverse.Create(redPunch).Field("holdingInput");
                 cooldownCost = Traverse.Create(redPunch).Field<float>("cooldownCost");
                 fist = MonoSingleton<FistControl>.Instance;
-                shopping = Traverse.Create(redPunch).Field("shopping");
+                blueShopping = Traverse.Create(bluePunch).Field("shopping");
+                redShopping = Traverse.Create(redPunch).Field("shopping");
             }
+        }
+
+        static Punch lastPunch;
+        static int color = 0;
+        [HarmonyPatch(typeof(Punch), "PunchStart")]
+        [HarmonyPostfix]
+        static void UpdateIcon(Punch __instance)
+        {
+            if (__instance.type == FistType.Heavy)
+                color = 2;
+            else if (__instance.type == FistType.Standard)
+                color = 0;
+            FistControl.Instance.fistIcon.color = ColorBlindSettings.Instance.variationColors[color];
+            if (lastPunch != null && lastPunch != __instance && lastPunch.anim != null)
+                lastPunch.CancelAttack();
+            lastPunch = __instance;
+        }
+
+        [HarmonyPatch(typeof(Punch), "ShopMode")]
+        [HarmonyPrefix]
+        static bool ShopMode(Punch __instance)
+        {
+            if (color == 0 && __instance.type == FistType.Standard)
+                return true;
+            else if (color == 2 && __instance.type == FistType.Heavy)
+                return true;
+            return false;
+        }
+
+        static bool Shopping()
+        {
+            return blueShopping.GetValue<bool>() || redShopping.GetValue<bool>();
         }
 
         [HarmonyPatch(typeof(Punch), "Update")]
@@ -70,7 +106,7 @@ namespace QuickFist
         {
             if (__instance.type == FistType.Heavy)
             {
-                if (MonoSingleton<InputManager>.Instance.InputSource.ChangeFist.WasPerformedThisFrame && __instance.ready && !shopping.GetValue<bool>() && fist.fistCooldown <= 0f && fist.activated)
+                if (MonoSingleton<InputManager>.Instance.InputSource.ChangeFist.WasPerformedThisFrame && __instance.ready && !Shopping() && fist.fistCooldown <= 0f && fist.activated)
                 {
                     float cooldown = 1f;
                     fist.weightCooldown += cooldown * 0.25f + fist.weightCooldown * cooldown * 0.1f;
@@ -90,18 +126,19 @@ namespace QuickFist
                     return false;
                 }
             }
-            else if (__instance.type == FistType.Standard && holdingInput.GetValue<bool>())
+            else if (__instance.type == FistType.Standard)
             {
-                return false;
+                if (holdingInput != null && holdingInput.GetValue<bool>())
+                    return false;
             }
             return true;
         }
 
-        static Traverse PunchStart;
         static Traverse<float> cooldownCost;
         static Traverse holdingInput;
         static Traverse camObj;
-        static Traverse shopping;
+        static Traverse blueShopping;
+        static Traverse redShopping;
         static FistControl fist;
         [HarmonyPatch(typeof(Punch), "BlastCheck")]
         [HarmonyPrefix]
@@ -120,6 +157,5 @@ namespace QuickFist
             }
             return false;
         }
-
     }
 }
