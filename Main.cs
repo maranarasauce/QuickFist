@@ -4,8 +4,8 @@ using UnityEngine;
 
 namespace QuickFist
 {
-    [BepInPlugin("maranara_quick_fist", "QuickFist", "0.2.0")]
-    public class QuickFist : BaseUnityPlugin
+    [UKPlugin("maranara_quick_fist", "QuickFist", "0.2.0", "Binds Feedbacker to the punch keybind and KnuckleBlaster to the change fist keybind", true, true)]
+    public class QuickFist : UKMod
     {
         private static Harmony harmony;
         private void OnEnable()
@@ -39,9 +39,8 @@ namespace QuickFist
                 __instance.blueArm.SetActive(true);
                 bluePunch.ready = true;
                 redPunch.ready = true;
-                return false;
             }
-            return true;
+            return false;
         }
 
 
@@ -49,15 +48,11 @@ namespace QuickFist
         [HarmonyPostfix]
         static void ArmPunch(Punch __instance)
         {
-
             if (__instance.type == FistType.Heavy)
             {
                 camObj = Traverse.Create(redPunch).Field("camObj");
                 holdingInput = Traverse.Create(redPunch).Field("holdingInput");
-                cooldownCost = Traverse.Create(redPunch).Field<float>("cooldownCost");
                 fist = MonoSingleton<FistControl>.Instance;
-                blueShopping = Traverse.Create(bluePunch).Field("shopping");
-                redShopping = Traverse.Create(redPunch).Field("shopping");
             }
         }
 
@@ -88,18 +83,13 @@ namespace QuickFist
             return false;
         }
 
-        static bool Shopping()
-        {
-            return blueShopping.GetValue<bool>() || redShopping.GetValue<bool>();
-        }
-
         [HarmonyPatch(typeof(Punch), "Update")]
         [HarmonyPrefix]
         static bool PunchUpdate(Punch __instance)
         {
             if (__instance.type == FistType.Heavy)
             {
-                if (MonoSingleton<InputManager>.Instance.InputSource.ChangeFist.WasPerformedThisFrame && __instance.ready && !Shopping() && fist.fistCooldown <= 0f && fist.activated)
+                if (MonoSingleton<InputManager>.Instance.InputSource.ChangeFist.WasPerformedThisFrame && __instance.ready && !FistControl.Instance.shopping && fist.fistCooldown <= 0f && fist.activated)
                 {
                     float cooldown = 1f;
                     fist.weightCooldown += cooldown * 0.25f + fist.weightCooldown * cooldown * 0.1f;
@@ -127,17 +117,14 @@ namespace QuickFist
             return true;
         }
 
-        static Traverse<float> cooldownCost;
         static Traverse holdingInput;
         static Traverse camObj;
-        static Traverse blueShopping;
-        static Traverse redShopping;
         static FistControl fist;
         [HarmonyPatch(typeof(Punch), "BlastCheck")]
         [HarmonyPrefix]
         static bool PunchBlastCheck(Punch __instance)
         {
-            if (MonoSingleton<InputManager>.Instance.InputSource.ChangeFist.IsPressed)
+            if (MonoSingleton<InputManager>.Instance.InputSource.ChangeFist.IsPressed && !FistControl.Instance.shopping)
             {
                 holdingInput.SetValue(false);
                 __instance.anim.SetTrigger("PunchBlast");
